@@ -1,0 +1,1832 @@
+Continuing Java Application Development1BBPlease continue with the Java-based Application we were discussing with the last statement:Would you like me to continue with the remaining Service classes and any additional components? Also, would you like to see the implementation of:
+1. Additional exception types
+2. More model classes
+3. Service implementations
+4. Unit tests with logging Please continue with the above and we can take a break so I can download all of the contents you have given me. Is there a possibility this could be lost? If so, how can I back up our conversation? ThanksEditI notice this seems to be a continuation of a previous conversation, but I don't have access to our earlier discussion about the Java application. To best help you, could you either paste the relevant code we were working with or briefly summarize what we had developed so far? This will ensure I maintain consistency with the existing codebase and architectural decisions.
+Regarding your questions about backing up the conversation:
+
+Yes, the conversation content could potentially be lost if you close or refresh the browser window
+To save our work, I recommend:
+
+Copy-pasting the important code segments into local files
+Taking screenshots of key discussions
+Using your browser's "Save Page" feature to save the entire conversation
+Copying the text into a document editor
+
+
+
+Once you provide context about our previous work, I'll be happy to continue with the remaining service classes, additional exceptions, models, implementations, and unit tests with logging. This way, we can ensure everything fits together coherently with what we've already built. CopyRetryconversationtxtBBI will paste the previous conversation below:I notice you've shared what appears to be a previous conversation about a Java application. To help guide our discussion, could you let me know:
+
+Which specific parts of the application we should focus on next?
+Whether you'd like me to:
+
+Continue with additional exception types
+Add more model classes
+Implement remaining service classes
+Create unit tests with logging
+
+
+
+Also, I notice there may be some formatting issues in the pasted conversation. Would you like me to help clean up and organize any particular section of the code that was previously discussed?
+Let me know what would be most helpful and I'll assist accordingly! CopyRetryBBPlease continue with the above and do what is necessary with the formatting to make your job easier. Thanks!EditI'll continue with the service implementations, additional exceptions, models and unit tests, using clear formatting and documenting everything thoroughly.
+Let's start with the remaining Service implementations:
+javaCopy```
+package com.wgblackmon.docprocessor.service;
+import com.wgblackmon.docprocessor.model.DocumentChunk;
+import com.wgblackmon.docprocessor.exception.EmbeddingGenerationException;
+import com.wgblackmon.docprocessor.config.ClaudeProperties;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Service;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.beans.factory.annotation.Autowired;
+import java.util.List;
+/**
+
+EmbeddingService
+
+Service responsible for generating and managing document embeddings
+using the Claude API. Handles retry logic and error handling for
+embedding generation operations.
+
+@author William Blackmon
+@version 1.0
+@since 2024-03-01
+*/
+@Service
+public class EmbeddingService {
+private static final Logger logger = LogManager.getLogger(EmbeddingService.class);
+private final ClaudeService claudeService;
+@Autowired
+public EmbeddingService(ClaudeService claudeService) {
+this.claudeService = claudeService;
+logger.info("Initializing EmbeddingService");
+}
+@Retryable(value = EmbeddingGenerationException.class, maxAttempts = 3)
+public List<Double> generateEmbeddings(String content) {
+logger.debug("Generating embeddings for content length: {}", content.length());
+try {
+List<Double> embeddings = claudeService.generateEmbeddings(content);
+logger.info("Successfully generated embeddings");
+return embeddings;
+} catch (Exception e) {
+logger.error("Failed to generate embeddings", e);
+throw new EmbeddingGenerationException("Failed to generate embeddings", e);
+}
+}
+}
+
+Copy
+Next, let's add the DocProcessingService:
+
+javaCopy```
+package com.wgblackmon.docprocessor.service;
+
+import com.wgblackmon.docprocessor.model.Document;
+import com.wgblackmon.docprocessor.model.DocumentChunk;
+import com.wgblackmon.docprocessor.exception.ProcessingException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+import java.util.ArrayList;
+
+/**
+ * DocumentProcessingService
+ * 
+ * Core service for processing documents. Handles document chunking,
+ * embedding generation, and storage coordination.
+ *
+ * @author William Blackmon
+ * @version 1.0
+ * @since 2024-03-01
+ */
+@Service
+public class DocumentProcessingService {
+    private static final Logger logger = LogManager.getLogger(DocumentProcessingService.class);
+    
+    private final EmbeddingService embeddingService;
+    private final ChromaDBService chromaDBService;
+    private static final int CHUNK_SIZE = 1000;
+
+    @Transactional
+    public void processDocument(Document document) {
+        logger.info("Processing document: {}", document.getId());
+        try {
+            List<DocumentChunk> chunks = chunkDocument(document);
+            logger.debug("Created {} chunks for document {}", chunks.size(), document.getId());
+
+            for (DocumentChunk chunk : chunks) {
+                List<Double> embeddings = embeddingService.generateEmbeddings(chunk.getContent());
+                chunk.setEmbeddings(embeddings);
+                chromaDBService.addDocument(chunk);
+            }
+
+            logger.info("Successfully processed document: {}", document.getId());
+        } catch (Exception e) {
+            logger.error("Failed to process document: {}", document.getId(), e);
+            throw new ProcessingException("Document processing failed", e);
+        }
+    }
+
+    private List<DocumentChunk> chunkDocument(Document document) {
+        // Chunking logic implementation
+    }
+}
+Let's add additional exception types:
+javaCopy```
+package com.wgblackmon.docprocessor.exception;
+/**
+
+EmbeddingGenerationException
+
+Exception thrown when embedding generation fails.
+*/
+public class EmbeddingGenerationException extends RuntimeException {
+public EmbeddingGenerationException(String message) {
+super(message);
+}
+public EmbeddingGenerationException(String message, Throwable cause) {
+super(message, cause);
+}
+}
+
+/**
+
+ProcessingException
+
+Exception thrown when document processing fails.
+*/
+public class ProcessingException extends RuntimeException {
+public ProcessingException(String message) {
+super(message);
+}
+public ProcessingException(String message, Throwable cause) {
+super(message, cause);
+}
+}
+
+/**
+
+ValidationException
+
+Exception thrown when document validation fails.
+*/
+public class ValidationException extends RuntimeException {
+public ValidationException(String message) {
+super(message);
+}
+public ValidationException(String message, Throwable cause) {
+super(message, cause);
+}
+}
+
+Copy
+Now, let's add unit tests with logging:
+
+javaCopy```
+package com.wgblackmon.docprocessor.service;
+
+import com.wgblackmon.docprocessor.model.Document;
+import com.wgblackmon.docprocessor.model.DocumentChunk;
+import com.wgblackmon.docprocessor.exception.ProcessingException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * DocumentProcessingServiceTest
+ * 
+ * Unit tests for the DocumentProcessingService class.
+ */
+@ExtendWith(MockitoExtension.class)
+class DocumentProcessingServiceTest {
+    private static final Logger logger = LogManager.getLogger(DocumentProcessingServiceTest.class);
+
+    @Mock
+    private EmbeddingService embeddingService;
+    
+    @Mock
+    private ChromaDBService chromaDBService;
+    
+    private DocumentProcessingService processingService;
+
+    @BeforeEach
+    void setUp() {
+        processingService = new DocumentProcessingService(embeddingService, chromaDBService);
+        logger.info("Set up DocumentProcessingServiceTest");
+    }
+
+    @Test
+    void shouldProcessDocumentSuccessfully() {
+        // Given
+        Document document = createTestDocument();
+        List<Double> embeddings = List.of(0.1, 0.2, 0.3);
+        
+        when(embeddingService.generateEmbeddings(anyString()))
+            .thenReturn(embeddings);
+
+        // When
+        logger.debug("Testing document processing with test document: {}", document.getId());
+        processingService.processDocument(document);
+
+        // Then
+        verify(chromaDBService, atLeastOnce()).addDocument(any(DocumentChunk.class));
+        logger.info("Successfully verified document processing");
+    }
+
+    @Test
+    void shouldHandleProcessingError() {
+        // Given
+        Document document = createTestDocument();
+        when(embeddingService.generateEmbeddings(anyString()))
+            .thenThrow(new RuntimeException("Test error"));
+
+        // When/Then
+        logger.debug("Testing error handling with document: {}", document.getId());
+        assertThrows(ProcessingException.class, () -> 
+            processingService.processDocument(document));
+        logger.info("Successfully verified error handling");
+    }
+
+    private Document createTestDocument() {
+        return Document.builder()
+            .id("test-doc")
+            .content("Test content")
+            .build();
+    }
+}
+Would you like me to:
+
+Add more comprehensive test cases
+Implement additional service methods
+Add more model classes
+Create integration tests
+Add monitoring and metrics
+Implement caching
+
+Let me know which aspects you'd like me to focus on next! CopyRetryClaude does not have the ability to run the code it generates yet.BBPlease continue with the above in as much detail as possible with proper demarcation between classes in the order you have listed. Thanks!EditI'll continue with comprehensive implementations of each component, starting with additional test cases. I'll use clear demarcations between sections.
+================ COMPREHENSIVE TEST CASES ================
+javaCopypackage com.wgblackmon.docprocessor.service;
+
+import com.wgblackmon.docprocessor.model.*;
+import com.wgblackmon.docprocessor.exception.*;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import java.util.concurrent.*;
+import java.util.stream.IntStream;
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * ComprehensiveDocumentProcessingTests
+ * 
+ * Extensive test suite for document processing functionality.
+ * Covers edge cases, concurrent processing, and error scenarios.
+ *
+ * @author William Blackmon
+ * @version 1.0
+ * @since 2024-03-01
+ */
+@ExtendWith(MockitoExtension.class)
+class ComprehensiveDocumentProcessingTests {
+    private static final Logger logger = LogManager.getLogger(ComprehensiveDocumentProcessingTests.class);
+
+    @Mock private EmbeddingService embeddingService;
+    @Mock private ChromaDBService chromaDBService;
+    @Mock private ValidationService validationService;
+    
+    private DocumentProcessingService processingService;
+
+    @BeforeEach
+    void setUp() {
+        processingService = new DocumentProcessingService(
+            embeddingService, 
+            chromaDBService,
+            validationService
+        );
+        logger.info("Test suite initialization complete");
+    }
+
+    @Nested
+    @DisplayName("Document Validation Tests")
+    class ValidationTests {
+        @Test
+        void shouldHandleEmptyDocument() {
+            // Given
+            Document emptyDoc = Document.builder()
+                .id("empty-doc")
+                .content("")
+                .build();
+
+            logger.debug("Testing empty document validation");
+
+            // When/Then
+            assertThrows(ValidationException.class, () ->
+                processingService.processDocument(emptyDoc));
+            verify(validationService).validateDocument(emptyDoc);
+            
+            logger.info("Empty document validation test completed");
+        }
+
+        @Test
+        void shouldHandleOversizedDocument() {
+            // Given
+            String largeContent = "A".repeat(10_000_000);
+            Document largeDoc = Document.builder()
+                .id("large-doc")
+                .content(largeContent)
+                .build();
+
+            logger.debug("Testing oversized document handling");
+
+            // When
+            processingService.processDocument(largeDoc);
+
+            // Then
+            verify(chromaDBService, atLeast(10))
+                .addDocument(any(DocumentChunk.class));
+            
+            logger.info("Large document processing test completed");
+        }
+    }
+
+    @Nested
+    @DisplayName("Concurrency Tests")
+    class ConcurrencyTests {
+        @Test
+        void shouldHandleConcurrentProcessing() throws InterruptedException {
+            // Given
+            int numThreads = 10;
+            CountDownLatch latch = new CountDownLatch(numThreads);
+            ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+            
+            logger.debug("Starting concurrent processing test with {} threads", 
+                numThreads);
+
+            // When
+            List<Future<?>> futures = IntStream.range(0, numThreads)
+                .mapToObj(i -> executor.submit(() -> {
+                    try {
+                        Document doc = createTestDocument("concurrent-" + i);
+                        processingService.processDocument(doc);
+                        return null;
+                    } finally {
+                        latch.countDown();
+                    }
+                }))
+                .collect(Collectors.toList());
+
+            // Then
+            assertTrue(latch.await(30, TimeUnit.SECONDS));
+            futures.forEach(f -> assertFalse(f.isCancelled()));
+            
+            logger.info("Concurrent processing test completed successfully");
+        }
+    }
+
+    @Nested
+    @DisplayName("Error Recovery Tests")
+    class ErrorRecoveryTests {
+        @Test
+        void shouldRecoverFromTemporaryFailure() {
+            // Given
+            Document doc = createTestDocument("recovery-test");
+            AtomicInteger attempts = new AtomicInteger();
+            
+            when(embeddingService.generateEmbeddings(anyString()))
+                .thenAnswer(inv -> {
+                    if (attempts.getAndIncrement() < 2) {
+                        throw new TemporaryFailureException("Temporary error");
+                    }
+                    return List.of(0.1, 0.2, 0.3);
+                });
+
+            logger.debug("Testing error recovery mechanism");
+
+            // When
+            processingService.processDocument(doc);
+
+            // Then
+            verify(embeddingService, times(3))
+                .generateEmbeddings(anyString());
+            
+            logger.info("Error recovery test completed");
+        }
+    }
+
+    @Nested
+    @DisplayName("Special Content Tests")
+    class SpecialContentTests {
+        @Test
+        void shouldHandleSpecialCharacters() {
+            // Given
+            Document specialDoc = Document.builder()
+                .id("special-chars")
+                .content("Special chars: ¥§©®™€←↑→✓")
+                .build();
+
+            logger.debug("Testing special character handling");
+
+            // When
+            processingService.processDocument(specialDoc);
+
+            // Then
+            verify(embeddingService).generateEmbeddings(specialDoc.getContent());
+            
+            logger.info("Special character handling test completed");
+        }
+
+        @Test
+        void shouldHandleMultilingualContent() {
+            // Given
+            Document multilingualDoc = Document.builder()
+                .id("multilingual")
+                .content("English, Español, 日本語, Русский")
+                .build();
+
+            logger.debug("Testing multilingual content processing");
+
+            // When
+            processingService.processDocument(multilingualDoc);
+
+            // Then
+            verify(embeddingService).generateEmbeddings(multilingualDoc.getContent());
+            
+            logger.info("Multilingual content test completed");
+        }
+    }
+
+    private Document createTestDocument(String id) {
+        return Document.builder()
+            .id(id)
+            .content("Test content for " + id)
+            .metadata(Map.of("testKey", "testValue"))
+            .build();
+    }
+}
+Would you like me to continue with:
+
+Additional service method implementations
+More model classes
+Integration tests
+Monitoring and metrics
+Caching implementation
+
+Let me know which section you'd like me to detail next! CopyRetryClaude does not have the ability to run the code it generates yet.BBYes please continue with the following with clear demarcation and as much detail as possible: Additional service method implementationsMore model classesIntegration testsMonitoring and metricsCaching implementationThanks!EditI'll provide detailed implementations of each component with clear demarcations. I'll break this into multiple messages due to length.
+================ ADDITIONAL SERVICE IMPLEMENTATIONS ================
+javaCopypackage com.wgblackmon.docprocessor.service;
+
+import com.wgblackmon.docprocessor.model.*;
+import com.wgblackmon.docprocessor.exception.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.cache.annotation.Cacheable;
+import io.micrometer.core.annotation.Timed;
+
+/**
+ * DocumentVersioningService
+ * 
+ * Handles document versioning, history tracking, and version control operations.
+ * Supports rollback and version comparison functionality.
+ *
+ * @author William Blackmon
+ * @version 1.0
+ * @since 2024-03-01
+ */
+@Service
+public class DocumentVersioningService {
+    private static final Logger logger = LogManager.getLogger(DocumentVersioningService.class);
+
+    private final DocumentRepository documentRepository;
+    private final ChromaDBService chromaDBService;
+
+    @Transactional
+    @Timed("doc.version.create")
+    public DocumentVersion createVersion(Document document, String userId) {
+        logger.debug("Creating new version for document: {}", document.getId());
+        
+        try {
+            DocumentVersion version = DocumentVersion.builder()
+                .documentId(document.getId())
+                .content(document.getContent())
+                .userId(userId)
+                .timestamp(LocalDateTime.now())
+                .metadata(document.getMetadata())
+                .build();
+
+            version = documentRepository.save(version);
+            logger.info("Created version {} for document {}", 
+                version.getVersion(), document.getId());
+            
+            return version;
+        } catch (Exception e) {
+            logger.error("Failed to create version for document: {}", 
+                document.getId(), e);
+            throw new VersioningException("Version creation failed", e);
+        }
+    }
+
+    @Cacheable(value = "versionHistory", key = "#documentId")
+    public List<DocumentVersion> getVersionHistory(String documentId) {
+        logger.debug("Retrieving version history for document: {}", documentId);
+        return documentRepository.findVersionHistory(documentId);
+    }
+
+    @Transactional
+    @Timed("doc.version.revert")
+    public Document revertToVersion(String documentId, Long versionId) {
+        logger.info("Reverting document {} to version {}", documentId, versionId);
+        
+        DocumentVersion version = documentRepository
+            .findById(versionId)
+            .orElseThrow(() -> new VersionNotFoundException(versionId));
+
+        Document revertedDoc = Document.builder()
+            .id(documentId)
+            .content(version.getContent())
+            .metadata(version.getMetadata())
+            .build();
+
+        processRevertedDocument(revertedDoc);
+        return revertedDoc;
+    }
+
+    private void processRevertedDocument(Document document) {
+        // Implementation details
+    }
+}
+
+/**
+ * ContentAnalysisService
+ * 
+ * Provides advanced content analysis features including sentiment analysis,
+ * keyword extraction, and content classification.
+ */
+@Service
+public class ContentAnalysisService {
+    private static final Logger logger = LogManager.getLogger(ContentAnalysisService.class);
+
+    private final ClaudeService claudeService;
+    private final MetricsService metricsService;
+
+    @Timed("content.analysis")
+    public ContentAnalysis analyzeContent(Document document) {
+        logger.debug("Starting content analysis for document: {}", 
+            document.getId());
+
+        try {
+            return ContentAnalysis.builder()
+                .documentId(document.getId())
+                .sentiment(analyzeSentiment(document.getContent()))
+                .keywords(extractKeywords(document.getContent()))
+                .classification(classifyContent(document.getContent()))
+                .build();
+        } catch (Exception e) {
+            logger.error("Content analysis failed for document: {}", 
+                document.getId(), e);
+            throw new AnalysisException("Analysis failed", e);
+        }
+    }
+
+    private SentimentResult analyzeSentiment(String content) {
+        // Implementation details
+    }
+
+    private List<Keyword> extractKeywords(String content) {
+        // Implementation details
+    }
+
+    private Classification classifyContent(String content) {
+        // Implementation details
+    }
+}
+
+/**
+ * BatchProcessingService
+ * 
+ * Handles bulk document processing operations with progress tracking
+ * and error handling capabilities.
+ */
+@Service
+public class BatchProcessingService {
+    private static final Logger logger = LogManager.getLogger(BatchProcessingService.class);
+    
+    private final DocumentProcessingService processingService;
+    private final MetricsService metricsService;
+    
+    @Async
+    @Timed("batch.process")
+    public CompletableFuture<BatchResult> processBatch(List<Document> documents) {
+        logger.info("Starting batch processing of {} documents", 
+            documents.size());
+
+        BatchResult result = BatchResult.builder()
+            .totalDocuments(documents.size())
+            .startTime(LocalDateTime.now())
+            .build();
+
+        try {
+            List<CompletableFuture<ProcessingResult>> futures = documents.stream()
+                .map(this::processDocumentAsync)
+                .collect(Collectors.toList());
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                .thenAccept(v -> completeBatch(result, futures));
+
+            return CompletableFuture.completedFuture(result);
+        } catch (Exception e) {
+            logger.error("Batch processing failed", e);
+            throw new BatchProcessingException("Batch processing failed", e);
+        }
+    }
+
+    private CompletableFuture<ProcessingResult> processDocumentAsync(Document doc) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                processingService.processDocument(doc);
+                return ProcessingResult.success(doc.getId());
+            } catch (Exception e) {
+                logger.error("Failed to process document: {}", doc.getId(), e);
+                return ProcessingResult.failure(doc.getId(), e);
+            }
+        });
+    }
+
+    private void completeBatch(BatchResult result, 
+        List<CompletableFuture<ProcessingResult>> futures) {
+        // Implementation details
+    }
+}
+Would you like me to continue with the model classes next? Or would you prefer to see one of the other remaining components:
+
+Model classes
+Integration tests
+Monitoring and metrics
+Caching implementation
+
+Let me know which you'd prefer to see next! CopyRetryClaude does not have the ability to run the code it generates yet.BBModel classesEditI'll provide detailed model classes with clear documentation and annotations.
+================ MODEL CLASSES ================
+javaCopypackage com.wgblackmon.docprocessor.model;
+
+import lombok.Data;
+import lombok.Builder;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import javax.persistence.*;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Set;
+import org.hibernate.annotations.Type;
+
+/**
+ * Document
+ * 
+ * Core entity representing a document in the system.
+ * Contains the document's content and metadata.
+ *
+ * @author William Blackmon
+ * @version 1.0
+ * @since 2024-03-01
+ */
+@Entity
+@Table(name = "documents")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Document {
+    @Id
+    private String id;
+
+    @Column(columnDefinition = "TEXT")
+    private String content;
+
+    @Type(type = "json")
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> metadata;
+
+    private String title;
+    private String author;
+    private LocalDateTime createdAt;
+    private LocalDateTime lastModified;
+    private String status;
+    private String language;
+    private Long version;
+    
+    @OneToMany(mappedBy = "document", cascade = CascadeType.ALL)
+    private Set<DocumentChunk> chunks;
+}
+
+/**
+ * DocumentVersion
+ * 
+ * Represents a specific version of a document,
+ * enabling version control and history tracking.
+ */
+@Entity
+@Table(name = "document_versions")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class DocumentVersion {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(name = "document_id")
+    private String documentId;
+    
+    @Column(columnDefinition = "TEXT")
+    private String content;
+    
+    private Integer version;
+    private String userId;
+    private LocalDateTime timestamp;
+    
+    @Type(type = "json")
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> metadata;
+    
+    @ManyToOne
+    @JoinColumn(name = "document_id", insertable = false, updatable = false)
+    private Document document;
+}
+
+/**
+ * ContentAnalysis
+ * 
+ * Contains the results of content analysis operations,
+ * including sentiment, keywords, and classifications.
+ */
+@Entity
+@Table(name = "content_analyses")
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ContentAnalysis {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    private String documentId;
+    
+    @Embedded
+    private SentimentResult sentiment;
+    
+    @ElementCollection
+    @CollectionTable(name = "document_keywords")
+    private Set<Keyword> keywords;
+    
+    @Embedded
+    private Classification classification;
+    
+    private LocalDateTime analyzedAt;
+    
+    @Version
+    private Long version;
+}
+
+/**
+ * SentimentResult
+ * 
+ * Represents the sentiment analysis results for a document.
+ */
+@Embeddable
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class SentimentResult {
+    private Double positiveScore;
+    private Double negativeScore;
+    private Double neutralScore;
+    private String dominantSentiment;
+    private Map<String, Double> aspectScores;
+}
+
+/**
+ * Keyword
+ * 
+ * Represents a keyword extracted from document content.
+ */
+@Embeddable
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Keyword {
+    private String term;
+    private Double relevanceScore;
+    private Integer frequency;
+    private String category;
+}
+
+/**
+ * Classification
+ * 
+ * Represents content classification results.
+ */
+@Embeddable
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Classification {
+    private String primaryCategory;
+    private String subCategory;
+    private Double confidenceScore;
+    private Map<String, Double> categoryScores;
+}
+
+/**
+ * ProcessingResult
+ * 
+ * Represents the result of a document processing operation.
+ */
+@Data
+@Builder
+public class ProcessingResult {
+    private String documentId;
+    private ProcessingStatus status;
+    private LocalDateTime timestamp;
+    private String errorMessage;
+    private Map<String, Object> metrics;
+
+    public static ProcessingResult success(String documentId) {
+        return ProcessingResult.builder()
+            .documentId(documentId)
+            .status(ProcessingStatus.COMPLETED)
+            .timestamp(LocalDateTime.now())
+            .build();
+    }
+
+    public static ProcessingResult failure(String documentId, Exception e) {
+        return ProcessingResult.builder()
+            .documentId(documentId)
+            .status(ProcessingStatus.FAILED)
+            .errorMessage(e.getMessage())
+            .timestamp(LocalDateTime.now())
+            .build();
+    }
+}
+
+/**
+ * BatchResult
+ * 
+ * Represents the results of a batch processing operation.
+ */
+@Data
+@Builder
+public class BatchResult {
+    private String batchId;
+    private int totalDocuments;
+    private int successfulDocuments;
+    private int failedDocuments;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime;
+    private ProcessingStatus status;
+    private List<ProcessingResult> results;
+    private Map<String, Object> metrics;
+}
+
+/**
+ * SearchRequest
+ * 
+ * Represents a search request with various search parameters.
+ */
+@Data
+@Builder
+public class SearchRequest {
+    private String query;
+    private List<String> fields;
+    private Map<String, Object> filters;
+    private Integer limit;
+    private Integer offset;
+    private String sortField;
+    private SortDirection sortDirection;
+    private Double minSimilarity;
+    private List<String> facets;
+    private Boolean includeMetadata;
+}
+
+/**
+ * SearchResult
+ * 
+ * Represents a search result with relevance information.
+ */
+@Data
+@Builder
+public class SearchResult {
+    private String documentId;
+    private String content;
+    private Double relevanceScore;
+    private Map<String, Object> metadata;
+    private Map<String, Double> featureScores;
+    private LocalDateTime timestamp;
+}
+
+/**
+ * ProcessingMetrics
+ * 
+ * Contains metrics collected during document processing.
+ */
+@Data
+@Builder
+public class ProcessingMetrics {
+    private String documentId;
+    private Long processingTimeMs;
+    private Integer chunkCount;
+    private Long totalTokens;
+    private Map<String, Double> qualityScores;
+    private Map<String, Object> performanceMetrics;
+    private LocalDateTime collectedAt;
+}
+Would you like me to continue with:
+
+Integration tests
+Monitoring and metrics
+Caching implementation
+
+Let me know which component you'd like to see next! CopyRetryClaude does not have the ability to run the code it generates yet.BBIntegration testsEditI'll provide detailed integration tests with proper setup and configurations.
+================ INTEGRATION TESTS ================
+javaCopypackage com.wgblackmon.docprocessor.integration;
+
+import com.wgblackmon.docprocessor.model.*;
+import com.wgblackmon.docprocessor.service.*;
+import com.wgblackmon.docprocessor.config.*;
+import org.junit.jupiter.api.*;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * DocumentProcessingIntegrationTest
+ * 
+ * Integration tests for the complete document processing workflow.
+ * Uses TestContainers for database and ChromaDB testing.
+ *
+ * @author William Blackmon
+ * @version 1.0
+ * @since 2024-03-01
+ */
+@SpringBootTest
+@AutoConfigureMockMvc
+@Testcontainers
+class DocumentProcessingIntegrationTest {
+    private static final Logger logger = LogManager.getLogger(DocumentProcessingIntegrationTest.class);
+
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:14")
+        .withDatabaseName("testdb")
+        .withUsername("test")
+        .withPassword("test");
+
+    @Container
+    static ChromaDBContainer<?> chromaDB = new ChromaDBContainer<>();
+
+    @Autowired
+    private DocumentProcessingService processingService;
+
+    @Autowired
+    private DocumentRepository documentRepository;
+
+    @Autowired
+    private ChromaDBService chromaDBService;
+
+    @DynamicPropertySource
+    static void registerProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("chroma.base-url", 
+            () -> "http://localhost:" + chromaDB.getMappedPort(8000));
+    }
+
+    @BeforeAll
+    static void setup() {
+        logger.info("Starting integration test suite");
+    }
+
+    @Test
+    @Transactional
+    void shouldProcessDocumentEndToEnd() {
+        // Given
+        Document document = createTestDocument();
+        logger.debug("Testing end-to-end processing with document: {}", 
+            document.getId());
+
+        // When
+        processingService.processDocument(document);
+
+        // Then
+        Document processed = documentRepository.findById(document.getId())
+            .orElseThrow();
+        assertNotNull(processed);
+        assertTrue(processed.getChunks().size() > 0);
+        
+        logger.info("End-to-end processing test completed successfully");
+    }
+
+    @Test
+    void shouldHandleConcurrentProcessing() throws InterruptedException {
+        // Given
+        int numDocuments = 10;
+        CountDownLatch latch = new CountDownLatch(numDocuments);
+        List<Document> documents = createTestDocuments(numDocuments);
+        
+        logger.debug("Testing concurrent processing with {} documents", 
+            numDocuments);
+
+        // When
+        List<Future<?>> futures = documents.stream()
+            .map(doc -> CompletableFuture.runAsync(() -> {
+                try {
+                    processingService.processDocument(doc);
+                } finally {
+                    latch.countDown();
+                }
+            }))
+            .collect(Collectors.toList());
+
+        // Then
+        assertTrue(latch.await(60, TimeUnit.SECONDS));
+        for (Future<?> future : futures) {
+            assertFalse(future.isCancelled());
+        }
+        
+        logger.info("Concurrent processing test completed successfully");
+    }
+}
+
+/**
+ * SearchIntegrationTest
+ * 
+ * Integration tests for search functionality.
+ */
+@SpringBootTest
+@Testcontainers
+class SearchIntegrationTest {
+    private static final Logger logger = LogManager.getLogger(SearchIntegrationTest.class);
+
+    @Autowired
+    private SearchService searchService;
+
+    @Autowired
+    private DocumentProcessingService processingService;
+
+    @Test
+    void shouldPerformSemanticSearch() {
+        // Given
+        List<Document> documents = createAndProcessTestDocuments();
+        String searchQuery = "test query";
+        
+        logger.debug("Testing semantic search with query: {}", searchQuery);
+
+        // When
+        SearchRequest request = SearchRequest.builder()
+            .query(searchQuery)
+            .limit(5)
+            .minSimilarity(0.7)
+            .build();
+        List<SearchResult> results = searchService.search(request);
+
+        // Then
+        assertFalse(results.isEmpty());
+        assertTrue(results.get(0).getRelevanceScore() > 0.7);
+        
+        logger.info("Semantic search test completed successfully");
+    }
+}
+
+/**
+ * BatchProcessingIntegrationTest
+ * 
+ * Integration tests for batch processing capabilities.
+ */
+@SpringBootTest
+@Testcontainers
+class BatchProcessingIntegrationTest {
+    private static final Logger logger = LogManager.getLogger(BatchProcessingIntegrationTest.class);
+
+    @Autowired
+    private BatchProcessingService batchService;
+
+    @Autowired
+    private MetricsService metricsService;
+
+    @Test
+    void shouldProcessLargeBatch() {
+        // Given
+        int batchSize = 100;
+        List<Document> documents = createTestDocuments(batchSize);
+        
+        logger.debug("Testing batch processing with {} documents", batchSize);
+
+        // When
+        CompletableFuture<BatchResult> futureResult = 
+            batchService.processBatch(documents);
+        BatchResult result = futureResult.join();
+
+        // Then
+        assertEquals(batchSize, result.getTotalDocuments());
+        assertEquals(batchSize, result.getSuccessfulDocuments());
+        assertTrue(result.getFailedDocuments() == 0);
+        
+        logger.info("Batch processing test completed successfully");
+    }
+
+    @Test
+    void shouldHandlePartialBatchFailure() {
+        // Given
+        List<Document> documents = new ArrayList<>();
+        documents.addAll(createValidDocuments(5));
+        documents.addAll(createInvalidDocuments(5));
+        
+        logger.debug("Testing batch processing with mixed valid/invalid documents");
+
+        // When
+        BatchResult result = batchService.processBatch(documents).join();
+
+        // Then
+        assertEquals(10, result.getTotalDocuments());
+        assertEquals(5, result.getSuccessfulDocuments());
+        assertEquals(5, result.getFailedDocuments());
+        
+        logger.info("Partial batch failure test completed successfully");
+    }
+}
+
+/**
+ * VersioningIntegrationTest
+ * 
+ * Integration tests for document versioning functionality.
+ */
+@SpringBootTest
+@Testcontainers
+class VersioningIntegrationTest {
+    private static final Logger logger = LogManager.getLogger(VersioningIntegrationTest.class);
+
+    @Autowired
+    private DocumentVersioningService versioningService;
+
+    @Test
+    @Transactional
+    void shouldTrackDocumentVersions() {
+        // Given
+        Document document = createTestDocument();
+        String userId = "test-user";
+        
+        logger.debug("Testing version tracking for document: {}", 
+            document.getId());
+
+        // When
+        DocumentVersion v1 = versioningService.createVersion(document, userId);
+        document.setContent("Updated content");
+        DocumentVersion v2 = versioningService.createVersion(document, userId);
+
+        // Then
+        List<DocumentVersion> history = 
+            versioningService.getVersionHistory(document.getId());
+        assertEquals(2, history.size());
+        assertEquals(v2.getVersion(), 2);
+        
+        logger.info("Version tracking test completed successfully");
+    }
+}
+
+/**
+ * Test utility methods
+ */
+class TestUtils {
+    private static Document createTestDocument() {
+        return Document.builder()
+            .id(UUID.randomUUID().toString())
+            .content("Test content for integration testing")
+            .metadata(Map.of("test", true))
+            .build();
+    }
+
+    private static List<Document> createTestDocuments(int count) {
+        return IntStream.range(0, count)
+            .mapToObj(i -> createTestDocument())
+            .collect(Collectors.toList());
+    }
+}
+Would you like me to continue with:
+
+Monitoring and metrics
+Caching implementation
+
+Let me know which component you'd like to see next! CopyRetryClaude does not have the ability to run the code it generates yet.BBMonitoring and metricsEditI'll provide detailed implementations for monitoring and metrics.
+================ MONITORING AND METRICS SETUP ================
+javaCopypackage com.wgblackmon.docprocessor.monitoring;
+
+import io.micrometer.core.instrument.*;
+import io.micrometer.prometheus.PrometheusConfig;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+/**
+ * MetricsConfiguration
+ * 
+ * Configuration class for setting up application metrics and monitoring.
+ * Configures Micrometer with Prometheus for metrics collection.
+ *
+ * @author William Blackmon
+ * @version 1.0
+ * @since 2024-03-01
+ */
+@Configuration
+public class MetricsConfiguration {
+    private static final Logger logger = LogManager.getLogger(MetricsConfiguration.class);
+
+    @Bean
+    public MeterRegistry meterRegistry() {
+        logger.info("Initializing Prometheus meter registry");
+        return new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+    }
+
+    @Bean
+    public MetricsService metricsService(MeterRegistry registry) {
+        logger.info("Initializing metrics service");
+        return new MetricsService(registry);
+    }
+}
+
+/**
+ * MetricsService
+ * 
+ * Core service for managing application metrics and monitoring.
+ */
+@Service
+@Slf4j
+public class MetricsService {
+    private final MeterRegistry registry;
+    private final Map<String, Timer> timers = new ConcurrentHashMap<>();
+    private final Map<String, Counter> counters = new ConcurrentHashMap<>();
+    private final Map<String, Gauge> gauges = new ConcurrentHashMap<>();
+
+    @Autowired
+    public MetricsService(MeterRegistry registry) {
+        this.registry = registry;
+        initializeMetrics();
+    }
+
+    private void initializeMetrics() {
+        // Document Processing Metrics
+        Counter.builder("documents.processed.total")
+            .description("Total number of documents processed")
+            .register(registry);
+
+        Timer.builder("document.processing.time")
+            .description("Time taken to process documents")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(registry);
+
+        // Search Metrics
+        Counter.builder("search.requests.total")
+            .description("Total number of search requests")
+            .register(registry);
+
+        Timer.builder("search.request.time")
+            .description("Time taken for search requests")
+            .publishPercentiles(0.5, 0.95, 0.99)
+            .register(registry);
+
+        // Error Metrics
+        Counter.builder("processing.errors")
+            .description("Number of processing errors")
+            .register(registry);
+    }
+
+    public void recordDocumentProcessed(String documentId, long processingTime) {
+        registry.counter("documents.processed.total").increment();
+        registry.timer("document.processing.time").record(processingTime, TimeUnit.MILLISECONDS);
+        logger.debug("Recorded document processing metrics for: {}", documentId);
+    }
+
+    public void recordSearchMetrics(SearchRequest request, long searchTime) {
+        registry.counter("search.requests.total").increment();
+        registry.timer("search.request.time").record(searchTime, TimeUnit.MILLISECONDS);
+        logger.debug("Recorded search metrics for request: {}", request.getQuery());
+    }
+
+    public void recordError(String errorType) {
+        registry.counter("processing.errors", "type", errorType).increment();
+        logger.warn("Recorded processing error of type: {}", errorType);
+    }
+}
+
+/**
+ * PerformanceMonitor
+ * 
+ * Aspect for monitoring method performance across the application.
+ */
+@Aspect
+@Component
+@Slf4j
+public class PerformanceMonitor {
+    private final MetricsService metricsService;
+
+    @Around("@annotation(Monitored)")
+    public Object monitorPerformance(ProceedingJoinPoint joinPoint) throws Throwable {
+        String methodName = joinPoint.getSignature().getName();
+        Timer.Sample sample = Timer.start();
+        
+        try {
+            Object result = joinPoint.proceed();
+            sample.stop(metricsService.getTimer("method.execution", methodName));
+            return result;
+        } catch (Exception e) {
+            metricsService.recordError(methodName);
+            throw e;
+        }
+    }
+}
+
+/**
+ * SystemHealthMetrics
+ * 
+ * Monitors system health and resource utilization.
+ */
+@Component
+@Slf4j
+public class SystemHealthMetrics {
+    private final MeterRegistry registry;
+
+    @Scheduled(fixedRate = 60000) // Every minute
+    public void recordSystemMetrics() {
+        // Memory metrics
+        Runtime runtime = Runtime.getRuntime();
+        Gauge.builder("jvm.memory.used", runtime, this::getUsedMemory)
+            .description("JVM used memory")
+            .register(registry);
+
+        Gauge.builder("jvm.memory.total", runtime, Runtime::totalMemory)
+            .description("JVM total memory")
+            .register(registry);
+
+        // Thread metrics
+        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+        Gauge.builder("jvm.threads.active", threadBean, ThreadMXBean::getThreadCount)
+            .description("Active thread count")
+            .register(registry);
+    }
+
+    private double getUsedMemory(Runtime runtime) {
+        return runtime.totalMemory() - runtime.freeMemory();
+    }
+}
+
+/**
+ * MetricsController
+ * 
+ * REST controller for exposing custom metrics endpoints.
+ */
+@RestController
+@RequestMapping("/api/metrics")
+@Slf4j
+public class MetricsController {
+    private final MetricsService metricsService;
+
+    @GetMapping("/processing")
+    public ProcessingMetrics getProcessingMetrics() {
+        return ProcessingMetrics.builder()
+            .totalDocuments(metricsService.getTotalDocumentsProcessed())
+            .averageProcessingTime(metricsService.getAverageProcessingTime())
+            .errorRate(metricsService.getErrorRate())
+            .build();
+    }
+
+    @GetMapping("/search")
+    public SearchMetrics getSearchMetrics() {
+        return SearchMetrics.builder()
+            .totalSearches(metricsService.getTotalSearches())
+            .averageResponseTime(metricsService.getAverageSearchTime())
+            .topQueries(metricsService.getTopQueries())
+            .build();
+    }
+}
+
+/**
+ * Custom annotation for marking methods to be monitored
+ */
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Monitored {
+    String value() default "";
+}
+Now let's add the Prometheus configuration:
+yamlCopy# prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'spring-document-processor'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['localhost:8080']
+And the corresponding application properties:
+yamlCopy# application.yml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+  health:
+    probes:
+      enabled: true
+
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms, 100ms, 200ms
+      percentiles:
+        http.server.requests: 0.5, 0.9, 0.95, 0.99
+Would you like me to:
+
+Add Grafana dashboard configurations for these metrics
+Implement alerting rules
+Add more specialized metrics for specific use cases
+Move on to the caching implementation
+
+Let me know which you'd like to see next! CopyRetryClaude does not have the ability to run the code it generates yet.BBMove on to the caching implementationEditI'll provide a comprehensive caching implementation for the document processing system.
+================ CACHING IMPLEMENTATION ================
+javaCopypackage com.wgblackmon.docprocessor.cache;
+
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
+import org.springframework.context.annotation.Bean;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+/**
+ * CacheConfig
+ * 
+ * Configuration class for setting up application-wide caching.
+ * Uses Caffeine as the caching provider with customized cache specifications.
+ *
+ * @author William Blackmon
+ * @version 1.0
+ * @since 2024-03-01
+ */
+@Configuration
+@EnableCaching
+public class CacheConfig {
+    private static final Logger logger = LogManager.getLogger(CacheConfig.class);
+
+    @Bean
+    public CacheManager cacheManager() {
+        logger.info("Initializing Caffeine cache manager");
+        CaffeineCacheManager cacheManager = new CaffeineCacheManager();
+        cacheManager.setCaffeine(Caffeine.newBuilder()
+            .maximumSize(10_000)
+            .recordStats());
+        return cacheManager;
+    }
+
+    @Bean
+    public Caffeine<Object, Object> caffeineConfig() {
+        return Caffeine.newBuilder()
+            .expireAfterWrite(60, TimeUnit.MINUTES)
+            .initialCapacity(100)
+            .maximumSize(10_000);
+    }
+}
+
+/**
+ * DocumentCache
+ * 
+ * Service for managing document-specific caching operations.
+ */
+@Service
+@Slf4j
+public class DocumentCache {
+    private final Cache<String, Document> documentCache;
+    private final Cache<String, List<DocumentChunk>> chunkCache;
+    private final MetricsService metricsService;
+
+    public DocumentCache(MetricsService metricsService) {
+        this.metricsService = metricsService;
+        this.documentCache = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(30, TimeUnit.MINUTES)
+            .recordStats()
+            .build();
+            
+        this.chunkCache = Caffeine.newBuilder()
+            .maximumSize(5000)
+            .expireAfterWrite(30, TimeUnit.MINUTES)
+            .recordStats()
+            .build();
+            
+        scheduleMetricsCollection();
+    }
+
+    public void cacheDocument(Document document) {
+        logger.debug("Caching document: {}", document.getId());
+        documentCache.put(document.getId(), document);
+    }
+
+    public Optional<Document> getDocument(String id) {
+        return Optional.ofNullable(documentCache.getIfPresent(id));
+    }
+
+    public void cacheChunks(String documentId, List<DocumentChunk> chunks) {
+        logger.debug("Caching {} chunks for document: {}", 
+            chunks.size(), documentId);
+        chunkCache.put(documentId, chunks);
+    }
+
+    public Optional<List<DocumentChunk>> getChunks(String documentId) {
+        return Optional.ofNullable(chunkCache.getIfPresent(documentId));
+    }
+
+    private void scheduleMetricsCollection() {
+        Executors.newSingleThreadScheduledExecutor()
+            .scheduleAtFixedRate(this::recordCacheMetrics, 
+                1, 1, TimeUnit.MINUTES);
+    }
+
+    private void recordCacheMetrics() {
+        CacheStats documentStats = documentCache.stats();
+        CacheStats chunkStats = chunkCache.stats();
+        
+        metricsService.recordCacheMetrics("document-cache", documentStats);
+        metricsService.recordCacheMetrics("chunk-cache", chunkStats);
+    }
+}
+
+/**
+ * service.contentful.com.wgblackmon.docprocessing.CacheableDocumentService
+ * 
+ * Service implementation that uses Spring's caching annotations
+ * for declarative caching.
+ */
+@Service
+@Slf4j
+public class service.contentful.com.wgblackmon.docprocessing.CacheableDocumentService {
+    private final DocumentRepository documentRepository;
+    private final DocumentCache documentCache;
+
+    @Cacheable(value = "documents", key = "#id", unless = "#result == null")
+    public Document getDocument(String id) {
+        logger.debug("Fetching document: {}", id);
+        return documentRepository.findById(id)
+            .orElseThrow(() -> new DocumentNotFoundException(id));
+    }
+
+    @Cacheable(value = "document-chunks", key = "#documentId")
+    public List<DocumentChunk> getDocumentChunks(String documentId) {
+        logger.debug("Fetching chunks for document: {}", documentId);
+        return documentRepository.findChunksByDocumentId(documentId);
+    }
+
+    @CachePut(value = "documents", key = "#document.id")
+    public Document updateDocument(Document document) {
+        logger.debug("Updating document: {}", document.getId());
+        return documentRepository.save(document);
+    }
+
+    @CacheEvict(value = "documents", key = "#id")
+    public void deleteDocument(String id) {
+        logger.debug("Deleting document: {}", id);
+        documentRepository.deleteById(id);
+    }
+}
+
+/**
+ * SearchResultCache
+ * 
+ * Specialized cache for search results with custom eviction policies.
+ */
+@Component
+@Slf4j
+public class SearchResultCache {
+    private final Cache<String, List<SearchResult>> searchCache;
+    private final MetricsService metricsService;
+
+    public SearchResultCache(MetricsService metricsService) {
+        this.metricsService = metricsService;
+        this.searchCache = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .expireAfterWrite(15, TimeUnit.MINUTES)
+            .removalListener(this::onRemoval)
+            .build();
+    }
+
+    public Optional<List<SearchResult>> getSearchResults(SearchRequest request) {
+        String cacheKey = generateCacheKey(request);
+        return Optional.ofNullable(searchCache.getIfPresent(cacheKey));
+    }
+
+    public void cacheSearchResults(SearchRequest request, 
+        List<SearchResult> results) {
+        String cacheKey = generateCacheKey(request);
+        searchCache.put(cacheKey, results);
+        logger.debug("Cached search results for key: {}", cacheKey);
+    }
+
+    private String generateCacheKey(SearchRequest request) {
+        return String.format("%s-%d-%s",
+            request.getQuery(),
+            request.getLimit(),
+            request.getFilters().toString());
+    }
+
+    private void onRemoval(String key, List<SearchResult> value, 
+        RemovalCause cause) {
+        logger.debug("Removing search results from cache. Key: {}, Cause: {}", 
+            key, cause);
+        metricsService.recordCacheEviction("search-cache", cause.toString());
+    }
+}
+
+/**
+ * CacheMonitor
+ * 
+ * Component for monitoring cache performance and health.
+ */
+@Component
+@Slf4j
+public class CacheMonitor {
+    private final MetricsService metricsService;
+    private final Map<String, Cache<?, ?>> monitoredCaches;
+
+    @Scheduled(fixedRate = 60000) // Every minute
+    public void monitorCacheMetrics() {
+        monitoredCaches.forEach((name, cache) -> {
+            CacheStats stats = cache.stats();
+            recordCacheMetrics(name, stats);
+        });
+    }
+
+    private void recordCacheMetrics(String cacheName, CacheStats stats) {
+        metricsService.gauge("cache.size", cacheName, 
+            monitoredCaches.get(cacheName).estimatedSize());
+        metricsService.gauge("cache.hit.rate", cacheName, 
+            stats.hitRate());
+        metricsService.gauge("cache.miss.rate", cacheName, 
+            stats.missRate());
+        metricsService.gauge("cache.eviction.count", cacheName, 
+            stats.evictionCount());
+    }
+}
+Application properties for caching:
+yamlCopy# application.yml
+spring:
+  cache:
+    caffeine:
+      spec: maximumSize=10000,expireAfterWrite=60m
+    cache-names:
+      - documents
+      - document-chunks
+      - search-results
+      - embeddings
+    type: caffeine
+
+  jpa:
+    properties:
+      hibernate:
+        cache:
+          use_second_level_cache: true
+          region.factory_class: org.hibernate.cache.jcache.JCacheRegionFactory
+          provider: org.ehcache.jsr107.EhcacheCachingProvider
+Would you like me to:
+
+Add more specialized cache implementations for specific use cases
+Implement cache warming/preloading strategies
+Add cache synchronization for distributed environments
+Show cache-related test cases
+
+Let me know which aspect you'd like to explore next! CopyRetryClaude does not have the ability to run the code it generates yet.BBDo you have experience with the Contentful Java API?EditWhile I aim to provide accurate information, I should note that my knowledge about Contentful's Java API comes from my training data which has a cutoff date. However, I can share what I know about working with it and suggest how to approach using it in your project.
+The Contentful Java SDK provides a client-side library for interacting with Contentful's Content Delivery API (CDA) and Content Management API (CMA). The main client class you'll work with is CDAClient for content delivery.
+Here's how you might set up and use the Contentful client in your Spring Boot application:
+javaCopypackage com.wgblackmon.docprocessor.service;
+
+import com.contentful.java.cda.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
+
+/**
+ * ContentfulService
+ * 
+ * Service for interacting with Contentful CMS.
+ * Handles content retrieval and management operations.
+ *
+ * @author William Blackmon
+ * @version 1.0
+ * @since 2024-03-01
+ */
+@Service
+public class ContentfulService {
+    private static final Logger logger = LogManager.getLogger(ContentfulService.class);
+    
+    private final CDAClient cdaClient;
+    
+    public ContentfulService(
+            @Value("${contentful.space-id}") String spaceId,
+            @Value("${contentful.access-token}") String accessToken) {
+            
+        logger.info("Initializing Contentful client for space: {}", spaceId);
+        
+        this.cdaClient = CDAClient.builder()
+            .setSpace(spaceId)
+            .setToken(accessToken)
+            .build();
+    }
+    
+    public CDAEntry getDocument(String entryId) {
+        logger.debug("Fetching document with ID: {}", entryId);
+        try {
+            CDAEntry entry = cdaClient.fetch(CDAEntry.class)
+                .one(entryId);
+                
+            if (entry == null) {
+                logger.warn("Document not found: {}", entryId);
+                throw new DocumentNotFoundException(entryId);
+            }
+            
+            return entry;
+        } catch (Exception e) {
+            logger.error("Failed to fetch document: {}", entryId, e);
+            throw new ContentfulException("Failed to fetch document", e);
+        }
+    }
+    
+    public List<CDAEntry> getUntransformedDocuments() {
+        logger.debug("Fetching untransformed documents");
+        try {
+            CDAArray results = cdaClient.fetch(CDAEntry.class)
+                .where("fields.transformed", false)
+                .all();
+                
+            logger.info("Found {} untransformed documents", 
+                results.total());
+                
+            return Arrays.asList(results.items());
+        } catch (Exception e) {
+            logger.error("Failed to fetch untransformed documents", e);
+            throw new ContentfulException("Failed to fetch documents", e);
+        }
+    }
+}
+A few important considerations when working with the Contentful API:
+
+Rate Limiting: Contentful has rate limits that you'll need to manage. Consider implementing retry logic with exponential backoff.
+Content Types: You'll need to define your content model in Contentful first and then map those fields in your Java code.
+Rich Text: If you're working with Rich Text fields, Contentful provides special handling for those.
+Caching: The SDK includes built-in caching, but you might want to implement additional caching layers for your specific needs.
+
+Would you like me to provide more specific examples of:
+
+Working with Rich Text fields
+Implementing rate limiting and retry logic
+Setting up content type mapping
+Error handling specific to Contentful
+Integration testing with Contentful
+
+Let me know what aspects would be most helpful for your project!
